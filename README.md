@@ -57,4 +57,4 @@ The geometry vocabulary is intentionally limited to boxes. MapStrike does not ye
 
 A broader brush/mesh editor, richer project organization, real map-format interchange, and in-game validation are possible directions. They are not part of this published prototype.
 
-This private repository grants no public license for its project source. Third-party crates retain their own licenses.
+This repository grants no public license for its project source. Third-party crates retain their own licenses.
