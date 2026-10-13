@@ -6,7 +6,7 @@
 
 MapStrike gives early map ideas a simple geometric form. Place and move boxes in a named blockout, save the layout, and export an OBJ to inspect elsewhere; a separate tool can inventory an existing map folder.
 
-### Highlights
+## Highlights
 
 - Build and revise box-based layouts.
 - Save a versioned blockout document.
