@@ -1,8 +1,20 @@
 # MapStrike
 
-**A native Rust blockout workbench for exploring CS2 map space.** MapStrike lets a creator place and move simple boxes, save that layout as JSON, and export an OBJ for visual inspection. It also has a separate source-inventory command for an existing map folder. This is an early geometry and provenance tool, not a Hammer or Source 2 map compiler.
+**by PWDS**
 
-> **Current stage:** The blockout model, JSON persistence, OBJ export, source snapshot, CLI, and first-party desktop window are implemented with headless tests. No Valve-compatible map round trip is claimed.
+**Lay out the space before the details.**
+
+MapStrike gives early map ideas a simple geometric form. Place and move boxes in a named blockout, save the layout, and export an OBJ to inspect elsewhere; a separate tool can inventory an existing map folder.
+
+### Highlights
+
+- Build and revise box-based layouts.
+- Save a versioned blockout document.
+- Export OBJ geometry or inventory source files.
+
+## Current status
+
+Early source prototype. The blockout model, CLI, and first desktop window have headless coverage, but visual workflow and clean-machine packaging remain open. It does not compile playable CS2 maps or round-trip Valve map formats.
 
 ## Two focused workflows
 
