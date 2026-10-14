@@ -1,0 +1,21 @@
+{
+  "app": "MapStrike",
+  "asset": "assets/branding/MapStrike.png",
+  "method": "Lossless rectangular extraction of original pixels with ImageMagick. No scaling, recoloring, tracing, generation, transparency fabrication or animal changes. Original cream outside rounded corners retained. Labels excluded.",
+  "coordinate_system": "Origin top-left; crop bounds [left, top, right, bottom), right/bottom exclusive.",
+  "source_sha256": "be5c41f093d9b943cd03a6c9669c353b6970d063bfee04d029179e73cf0c4d56",
+  "crop_bounds": [
+    32,
+    0,
+    688,
+    656
+  ],
+  "dimensions": [
+    656,
+    656
+  ],
+  "sha256": "92289365ae2ad15ab5cca1fd8b18c4a8ae9aca0048296b2546effe56134d8f10",
+  "decoded_rgb_sha256": "0a498d6c911055b593eda0590137380ef073749b3229b8232cdbb22b1bf9eb9a",
+  "pixel_equality_verified": true,
+  "git_blob_sha": "82cf8f44f61c28ce2aa6dc9cd2a60451ee03ec5f"
+}
