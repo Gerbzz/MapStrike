@@ -1,0 +1,27 @@
+name: Source checks
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  core-windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Check formatting
+        run: cargo fmt -- --check
+      - name: Test core blockout and inventory logic
+        run: cargo test --locked --lib
+      - name: Build command-line tool
+        run: cargo build --locked --bin mapstrike
