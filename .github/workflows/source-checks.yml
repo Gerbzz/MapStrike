@@ -53,6 +53,7 @@ jobs:
           & $exe add-spawn $doc t 0 0 16 360
           if ($LASTEXITCODE -eq 0) { throw 'invalid yaw was accepted' }
           if ((Get-FileHash -Algorithm SHA256 -LiteralPath $doc).Hash -ne $docHash) { throw 'invalid edit changed the document' }
+          exit 0
       - name: Test native view model and VMAP export
         run: cargo test --locked --features native-ui --lib
       - name: Build native window
