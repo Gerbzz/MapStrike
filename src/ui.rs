@@ -1,4 +1,5 @@
 use crate::blockout::{Blockout, Team, export_obj, load_blockout, save_blockout};
+use crate::vmap::export_vmap;
 use eframe::egui;
 use std::path::Path;
 
@@ -7,6 +8,7 @@ pub struct MapStrikeApp {
     pub name: String,
     pub document_path: String,
     pub export_path: String,
+    pub vmap_path: String,
     pub block_min: [i32; 3],
     pub block_max: [i32; 3],
     pub move_id: u32,
@@ -19,6 +21,8 @@ pub struct MapStrikeApp {
     pub spawn_yaw: u16,
     pub status: Option<String>,
     pub error: Option<String>,
+    logo_texture: Option<egui::TextureHandle>,
+    logo_loaded: bool,
 }
 
 impl Default for MapStrikeApp {
@@ -28,6 +32,7 @@ impl Default for MapStrikeApp {
             name: "New blockout".into(),
             document_path: String::new(),
             export_path: String::new(),
+            vmap_path: String::new(),
             block_min: [0, 0, 0],
             block_max: [128, 128, 64],
             move_id: 1,
@@ -40,6 +45,8 @@ impl Default for MapStrikeApp {
             spawn_yaw: 0,
             status: None,
             error: None,
+            logo_texture: None,
+            logo_loaded: false,
         }
     }
 }
@@ -66,6 +73,7 @@ impl MapStrikeApp {
                 self.name = blockout.name.clone();
                 self.document_path = path.display().to_string();
                 self.export_path = path.with_extension("obj").display().to_string();
+                self.vmap_path = path.with_extension("vmap").display().to_string();
                 self.blockout = Some(blockout);
                 self.status = Some("Blockout reopened".into());
                 self.error = None;
@@ -190,14 +198,86 @@ impl MapStrikeApp {
             }
         }
     }
+
+    pub fn export_cs2_source(&mut self) -> Result<(), String> {
+        let blockout = self
+            .blockout
+            .as_ref()
+            .ok_or_else(|| "create or open a blockout first".to_string())?;
+        match export_vmap(blockout, Path::new(&self.vmap_path)) {
+            Ok(()) => {
+                self.status = Some(format!(
+                    "Experimental VMAP source written; Hammer validation pending: {}",
+                    self.vmap_path
+                ));
+                self.error = None;
+                Ok(())
+            }
+            Err(error) => {
+                self.error = Some(error.clone());
+                Err(error)
+            }
+        }
+    }
 }
 
 impl eframe::App for MapStrikeApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         ctx.set_visuals(egui::Visuals::dark());
+        if !self.logo_loaded {
+            self.logo_loaded = true;
+            if let Ok(png) =
+                image::load_from_memory(include_bytes!("../assets/branding/MapStrike.png"))
+            {
+                let rgba = png.to_rgba8();
+                let color = egui::ColorImage::from_rgba_unmultiplied(
+                    [rgba.width() as usize, rgba.height() as usize],
+                    rgba.as_raw(),
+                );
+                self.logo_texture = Some(ctx.load_texture(
+                    "approved-mapstrike-logo",
+                    color,
+                    egui::TextureOptions::LINEAR,
+                ));
+            }
+        }
+        if self.blockout.is_none() {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.add_space(24.0);
+                    if let Some(logo) = &self.logo_texture {
+                        ui.image((logo.id(), egui::vec2(128.0, 128.0)));
+                    }
+                    ui.heading("MapStrike");
+                    ui.label("Shape a space, then test it in Counter-Strike 2.");
+                    ui.small("A PWDS project");
+                    ui.add_space(22.0);
+                    ui.horizontal(|ui| {
+                        ui.label("New blockout");
+                        ui.text_edit_singleline(&mut self.name);
+                        if ui.button("Create").clicked() {
+                            let _ = self.new_blockout();
+                        }
+                    });
+                    if ui.button("Open existing blockout").clicked() {
+                        if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("Blockout JSON", &["json"])
+                            .pick_file()
+                        {
+                            let _ = self.open_blockout(&path);
+                        }
+                    }
+                    if let Some(error) = &self.error {
+                        ui.colored_label(egui::Color32::LIGHT_RED, error);
+                    }
+                    ui.small("VMAP export is experimental until Hammer and in-game checks pass.");
+                });
+            });
+            return;
+        }
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
-                ui.heading("MapStrike");
+                ui.heading("Blockout editor");
                 ui.label(
                     "Editable room and team-spawn study; OBJ export is not a Valve map build.",
                 );
@@ -325,6 +405,14 @@ impl eframe::App for MapStrikeApp {
                     if ui.button("Export inspection mesh").clicked() {
                         let _ = self.export_mesh();
                     }
+                    ui.horizontal(|ui| {
+                        ui.label("Experimental CS2 VMAP");
+                        ui.text_edit_singleline(&mut self.vmap_path);
+                    });
+                    ui.label("Requires T and CT spawns. Hammer open, compile, and CS2 play checks are pending.");
+                    if ui.button("Export new VMAP source").clicked() {
+                        let _ = self.export_cs2_source();
+                    }
                 }
             });
         });
@@ -356,7 +444,10 @@ mod tests {
 
     #[test]
     fn view_model_adds_room_and_team_spawns() {
+        let dir = tempfile::TempDir::new().unwrap();
         let mut app = MapStrikeApp::default();
+        app.document_path = dir.path().join("room.json").display().to_string();
+        app.vmap_path = dir.path().join("room.vmap").display().to_string();
         app.new_blockout().unwrap();
         app.add_room().unwrap();
         app.add_spawn().unwrap();
@@ -364,8 +455,14 @@ mod tests {
         app.spawn_origin = [256, 0, 16];
         app.spawn_yaw = 180;
         app.add_spawn().unwrap();
-        let blockout = app.blockout.unwrap();
+        app.save_document().unwrap();
+        let document = app.document_path.clone();
+        app.open_blockout(Path::new(&document)).unwrap();
+        let blockout = app.blockout.as_ref().unwrap();
         assert_eq!(blockout.blocks.len(), 5);
         assert_eq!(blockout.spawns.len(), 2);
+        app.export_cs2_source().unwrap();
+        assert!(Path::new(&app.vmap_path).is_file());
+        assert!(app.export_cs2_source().is_err());
     }
 }

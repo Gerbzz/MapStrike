@@ -67,7 +67,13 @@ fn main() {
                 Ok(format!("inspection OBJ exported: {}", Path::new(output).display()))
             })
         }
-        _ => Err("usage: mapstrike snapshot <root> <map.vmap> <new-report.json> | new-blockout <name> <new-document.json> | add-block <document.json> <x0> <y0> <z0> <x1> <y1> <z1> | add-room <document.json> <x> <y> <z> <width> <depth> <height> <thickness> | add-spawn <document.json> <t|ct> <x> <y> <z> <yaw> | move-block <document.json> <id> <dx> <dy> <dz> | export-obj <document.json> <new.obj>".into()),
+        [command, document, output] if command == "export-vmap" => {
+            mapstrike::blockout::load_blockout(Path::new(document)).and_then(|blockout| {
+                mapstrike::vmap::export_vmap(&blockout, Path::new(output))?;
+                Ok(format!("unvalidated CS2 VMAP source exported: {}", Path::new(output).display()))
+            })
+        }
+        _ => Err("usage: mapstrike snapshot <root> <map.vmap> <new-report.json> | new-blockout <name> <new-document.json> | add-block <document.json> <x0> <y0> <z0> <x1> <y1> <z1> | add-room <document.json> <x> <y> <z> <width> <depth> <height> <thickness> | add-spawn <document.json> <t|ct> <x> <y> <z> <yaw> | move-block <document.json> <id> <dx> <dy> <dz> | export-obj <document.json> <new.obj> | export-vmap <document.json> <new.vmap>".into()),
     };
     match result {
         Ok(message) => println!("{message}"),

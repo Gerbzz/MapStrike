@@ -11,7 +11,7 @@ permissions:
 jobs:
   core-windows:
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       CARGO_INCREMENTAL: "0"
     steps:
@@ -25,3 +25,7 @@ jobs:
         run: cargo test --locked --lib
       - name: Build command-line tool
         run: cargo build --locked --bin mapstrike
+      - name: Test native view model and VMAP export
+        run: cargo test --locked --features native-ui --lib
+      - name: Build native window
+        run: cargo build --locked --features native-ui --bin mapstrike-ui

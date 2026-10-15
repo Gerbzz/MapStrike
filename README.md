@@ -13,7 +13,7 @@
 
 **Lay out the space before the details.**
 
-MapStrike gives early map ideas a simple geometric form. Place and move boxes in a named blockout, save the layout, and export an OBJ to inspect elsewhere; a separate tool can inventory an existing map folder.
+MapStrike gives early map ideas a simple geometric form. Place and move boxes in a named blockout, save the layout, and export an OBJ to inspect elsewhere; a separate tool can inventory an existing map folder. This draft also writes an experimental CS2 `.vmap` source for rooms with both team spawns.
 
 ## Native renderer preview
 
@@ -21,7 +21,7 @@ MapStrike gives early map ideas a simple geometric form. Place and move boxes in
 
 This 650 x 370 image is a direct egui capture of the current form-based blockout UI with a [synthetic saved document](docs/screenshots/fixtures/courtyard-study.json). The evidence-only capture helper is in [draft PR #1](https://github.com/Gerbzz/MapStrike/pull/1); the application UI source is unchanged from `main`. This is a renderer view, not a record of pointer use or a 3D map preview. [Capture provenance and limits](docs/screenshots/README.md) identify the exact source, build, and fixture.
 
-The screenshot shows the published `main` UI before the room and team-spawn controls in this draft branch. A new capture is pending a native build and inspection.
+The screenshot shows the published `main` UI before the room, team-spawn, and experimental VMAP controls in this draft branch. A new capture is pending a native build and inspection.
 
 ## Highlights
 
@@ -29,10 +29,11 @@ The screenshot shows the published `main` UI before the room and team-spawn cont
 - Generate an open room from a floor and four walls, then place T/CT spawn markers.
 - Save a versioned blockout document.
 - Export OBJ geometry or inventory source files.
+- Write a new, experimental CS2 VMAP source with box meshes and T/CT spawn entities for Hammer validation.
 
 ## Current status
 
-Early source prototype. The published blockout model, CLI, and first desktop window had headless coverage; the room and spawn changes in this draft still need a native test run. Visual workflow and clean-machine packaging remain open. It does not compile playable CS2 maps or round-trip Valve map formats.
+Early source prototype. The room and spawn model passed [8 hosted Windows core tests](https://github.com/Gerbzz/MapStrike/actions/runs/38707854215). The experimental VMAP writer and revised native window are in this draft and still require their hosted test run and live inspection. Hammer open, compile, and CS2 walking checks remain open; this is not a playable CS2 map claim.
 
 ## Two focused workflows
 
@@ -40,7 +41,7 @@ Early source prototype. The published blockout model, CLI, and first desktop win
 
 Create a named blockout, add axis-aligned boxes with integer minimum and maximum coordinates, and move a box by its ID. A room command adds five boxes around a specified interior. Spawn markers store team, position, and yaw; they are project data and are not included in the OBJ mesh. Spawn collision and player clearance are not checked yet. The document validates positive width, depth, and height, and protects against coordinate or ID overflow. Save and reopen the versioned JSON document; export its boxes as triangle geometry in a new OBJ file. Version 1 documents reopen as version 2 with no spawns.
 
-The desktop UI exposes this layout workflow. The OBJ is intended for inspection or further experimentation. It is not a compiled map, collision package, navigation mesh, or game-ready asset.
+The desktop UI exposes this layout workflow. The OBJ is intended for inspection or further experimentation. A separate `export-vmap` action writes new KeyValues2 `vmap 40` source with six-sided box meshes and T/CT spawn entities. It refuses an existing path and requires at least one spawn for each team. Its source structure is based on a [public CS2 gameplay map](https://github.com/ryanpolasky/CS2-Uno/blob/5eec328523aca493653cf6849df62b0c783531f2/maps/prefabs/uno_by_imania/uno_by_imania_gameplay.vmap); no map content was copied. [Format evidence, foundation comparison, and acceptance checklist](docs/VMAP_PROOF.md) state the validation limits.
 
 ### Inventory an existing map folder
 
@@ -51,7 +52,7 @@ Point the CLI at a project root and a <code>.vmap</code> file inside it. MapStri
 | Blockout <code>.json</code> | Editable name, box coordinates, and team spawn markers, schema version 2 |
 | Export <code>.obj</code> | New inspection mesh generated from the blockout |
 | Snapshot <code>.json</code> | Relative paths, byte lengths, and SHA-256 hashes of selected source files |
-| Source <code>.vmap</code> | Input to inventory only; never treated as an editable MapStrike document |
+| Source <code>.vmap</code> | Existing input to inventory, or a new experimental export; never treated as an editable MapStrike document |
 
 ## Data checks behind the workflow
 
@@ -78,14 +79,15 @@ cargo run --locked --bin mapstrike -- add-room <document.json> <x> <y> <z> <widt
 cargo run --locked --bin mapstrike -- add-spawn <document.json> <t|ct> <x> <y> <z> <yaw>
 cargo run --locked --bin mapstrike -- move-block <document.json> <id> <dx> <dy> <dz>
 cargo run --locked --bin mapstrike -- export-obj <document.json> <new.obj>
+cargo run --locked --bin mapstrike -- export-vmap <document.json> <new.vmap>
 cargo run --locked --bin mapstrike -- snapshot <project-root> <map.vmap> <new-report.json>
 ~~~
 
-The edit commands update the blockout document; export creates a separate file and refuses an existing destination. The snapshot is read-only with respect to the source folder.
+The edit commands update the blockout document; both exports create separate files and refuse an existing destination. The snapshot is read-only with respect to the source folder. A VMAP export is a candidate Hammer source, not a compile or play result.
 
 ## What is still open
 
-The geometry vocabulary is intentionally limited to boxes. Spawn markers are not yet exported to VMAP. MapStrike does not yet edit VMAP content, compile a playable level, validate Counter-Strike materials, generate lighting or navigation, or round-trip through Valve tools. Visual workflow review and clean-machine packaging have not passed acceptance.
+The geometry vocabulary is intentionally limited to boxes. MapStrike does not yet edit existing VMAP content, compile a playable level, validate materials and player clearance in Hammer, generate lighting or navigation, or round-trip through Valve tools. Visual workflow review and clean-machine packaging have not passed acceptance.
 
 A broader brush/mesh editor, richer project organization, real map-format interchange, and in-game validation are possible directions. They are not part of this published prototype.
 
