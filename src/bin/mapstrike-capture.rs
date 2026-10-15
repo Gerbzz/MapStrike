@@ -109,4 +109,16 @@ mod tests {
             capture_paths(&[args[0].clone(), args[1].clone(), OsString::from("extra")]).is_err()
         );
     }
+
+    #[test]
+    fn failed_encoding_does_not_publish_partial_png() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let output = dir.path().join("failed.png");
+        let invalid_image = egui::ColorImage {
+            size: [1, 1],
+            pixels: Vec::new(),
+        };
+        assert!(save_png(&output, &invalid_image).is_err());
+        assert!(!output.exists(), "failed encoding left a partial PNG");
+    }
 }
