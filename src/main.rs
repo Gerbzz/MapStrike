@@ -28,6 +28,32 @@ fn main() {
             mapstrike::blockout::save_blockout(&blockout, Path::new(document), true)?;
             Ok(format!("added block {id}"))
         })(),
+        [command, document, x, y, z, width, depth, height, thickness]
+            if command == "add-room" => (|| {
+                let mut blockout = mapstrike::blockout::load_blockout(Path::new(document))?;
+                let ids = blockout.add_room(
+                    [parse(x)?, parse(y)?, parse(z)?],
+                    [parse(width)?, parse(depth)?, parse(height)?],
+                    parse(thickness)?,
+                )?;
+                mapstrike::blockout::save_blockout(&blockout, Path::new(document), true)?;
+                Ok(format!("added room blocks {} through {}", ids[0], ids[4]))
+            })(),
+        [command, document, team, x, y, z, yaw] if command == "add-spawn" => (|| {
+            let team = match team.to_string_lossy().as_ref() {
+                "t" => mapstrike::blockout::Team::Terrorists,
+                "ct" => mapstrike::blockout::Team::CounterTerrorists,
+                _ => return Err("team must be t or ct".to_string()),
+            };
+            let yaw = yaw
+                .to_string_lossy()
+                .parse::<u16>()
+                .map_err(|_| "spawn yaw must be 0 through 359 degrees".to_string())?;
+            let mut blockout = mapstrike::blockout::load_blockout(Path::new(document))?;
+            let id = blockout.add_spawn(team, [parse(x)?, parse(y)?, parse(z)?], yaw)?;
+            mapstrike::blockout::save_blockout(&blockout, Path::new(document), true)?;
+            Ok(format!("added {:?} spawn {id}", team))
+        })(),
         [command, document, id, dx, dy, dz] if command == "move-block" => (|| {
             let id = id.to_string_lossy().parse::<u32>().map_err(|_| "invalid block ID".to_string())?;
             let mut blockout = mapstrike::blockout::load_blockout(Path::new(document))?;
@@ -41,7 +67,7 @@ fn main() {
                 Ok(format!("inspection OBJ exported: {}", Path::new(output).display()))
             })
         }
-        _ => Err("usage: mapstrike snapshot <root> <map.vmap> <new-report.json> | new-blockout <name> <new-document.json> | add-block <document.json> <x0> <y0> <z0> <x1> <y1> <z1> | move-block <document.json> <id> <dx> <dy> <dz> | export-obj <document.json> <new.obj>".into()),
+        _ => Err("usage: mapstrike snapshot <root> <map.vmap> <new-report.json> | new-blockout <name> <new-document.json> | add-block <document.json> <x0> <y0> <z0> <x1> <y1> <z1> | add-room <document.json> <x> <y> <z> <width> <depth> <height> <thickness> | add-spawn <document.json> <t|ct> <x> <y> <z> <yaw> | move-block <document.json> <id> <dx> <dy> <dz> | export-obj <document.json> <new.obj>".into()),
     };
     match result {
         Ok(message) => println!("{message}"),

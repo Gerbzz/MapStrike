@@ -21,21 +21,24 @@ MapStrike gives early map ideas a simple geometric form. Place and move boxes in
 
 This 650 x 370 image is a direct egui capture of the current form-based blockout UI with a [synthetic saved document](docs/screenshots/fixtures/courtyard-study.json). The evidence-only capture helper is in [draft PR #1](https://github.com/Gerbzz/MapStrike/pull/1); the application UI source is unchanged from `main`. This is a renderer view, not a record of pointer use or a 3D map preview. [Capture provenance and limits](docs/screenshots/README.md) identify the exact source, build, and fixture.
 
+The screenshot shows the published `main` UI before the room and team-spawn controls in this draft branch. A new capture is pending a native build and inspection.
+
 ## Highlights
 
 - Build and revise box-based layouts.
+- Generate an open room from a floor and four walls, then place T/CT spawn markers.
 - Save a versioned blockout document.
 - Export OBJ geometry or inventory source files.
 
 ## Current status
 
-Early source prototype. The blockout model, CLI, and first desktop window have headless coverage, but visual workflow and clean-machine packaging remain open. It does not compile playable CS2 maps or round-trip Valve map formats.
+Early source prototype. The published blockout model, CLI, and first desktop window had headless coverage; the room and spawn changes in this draft still need a native test run. Visual workflow and clean-machine packaging remain open. It does not compile playable CS2 maps or round-trip Valve map formats.
 
 ## Two focused workflows
 
 ### Build a box layout
 
-Create a named blockout, add axis-aligned boxes with integer minimum and maximum coordinates, and move a box by its ID. The document validates positive width, depth, and height, and protects against coordinate or ID overflow. Save and reopen the versioned JSON document; export its boxes as triangle geometry in a new OBJ file.
+Create a named blockout, add axis-aligned boxes with integer minimum and maximum coordinates, and move a box by its ID. A room command adds five boxes around a specified interior. Spawn markers store team, position, and yaw; they are project data and are not included in the OBJ mesh. Spawn collision and player clearance are not checked yet. The document validates positive width, depth, and height, and protects against coordinate or ID overflow. Save and reopen the versioned JSON document; export its boxes as triangle geometry in a new OBJ file. Version 1 documents reopen as version 2 with no spawns.
 
 The desktop UI exposes this layout workflow. The OBJ is intended for inspection or further experimentation. It is not a compiled map, collision package, navigation mesh, or game-ready asset.
 
@@ -45,7 +48,7 @@ Point the CLI at a project root and a <code>.vmap</code> file inside it. MapStri
 
 | File | Role |
 | --- | --- |
-| Blockout <code>.json</code> | Editable name and box coordinates, schema version 1 |
+| Blockout <code>.json</code> | Editable name, box coordinates, and team spawn markers, schema version 2 |
 | Export <code>.obj</code> | New inspection mesh generated from the blockout |
 | Snapshot <code>.json</code> | Relative paths, byte lengths, and SHA-256 hashes of selected source files |
 | Source <code>.vmap</code> | Input to inventory only; never treated as an editable MapStrike document |
@@ -71,16 +74,18 @@ The CLI exposes both workflows. Choose new paths for the JSON document and OBJ o
 ~~~powershell
 cargo run --locked --bin mapstrike -- new-blockout <name> <new-document.json>
 cargo run --locked --bin mapstrike -- add-block <document.json> <x0> <y0> <z0> <x1> <y1> <z1>
+cargo run --locked --bin mapstrike -- add-room <document.json> <x> <y> <z> <width> <depth> <height> <thickness>
+cargo run --locked --bin mapstrike -- add-spawn <document.json> <t|ct> <x> <y> <z> <yaw>
 cargo run --locked --bin mapstrike -- move-block <document.json> <id> <dx> <dy> <dz>
 cargo run --locked --bin mapstrike -- export-obj <document.json> <new.obj>
 cargo run --locked --bin mapstrike -- snapshot <project-root> <map.vmap> <new-report.json>
 ~~~
 
-The first three commands update the blockout document; export creates a separate file and refuses an existing destination. The snapshot is read-only with respect to the source folder.
+The edit commands update the blockout document; export creates a separate file and refuses an existing destination. The snapshot is read-only with respect to the source folder.
 
 ## What is still open
 
-The geometry vocabulary is intentionally limited to boxes. MapStrike does not yet edit VMAP content, compile a playable level, validate Counter-Strike materials, generate lighting or navigation, or round-trip through Valve tools. Visual workflow review and clean-machine packaging have not passed acceptance.
+The geometry vocabulary is intentionally limited to boxes. Spawn markers are not yet exported to VMAP. MapStrike does not yet edit VMAP content, compile a playable level, validate Counter-Strike materials, generate lighting or navigation, or round-trip through Valve tools. Visual workflow review and clean-machine packaging have not passed acceptance.
 
 A broader brush/mesh editor, richer project organization, real map-format interchange, and in-game validation are possible directions. They are not part of this published prototype.
 

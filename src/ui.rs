@@ -1,4 +1,4 @@
-use crate::blockout::{Blockout, export_obj, load_blockout, save_blockout};
+use crate::blockout::{Blockout, Team, export_obj, load_blockout, save_blockout};
 use eframe::egui;
 use std::path::Path;
 
@@ -11,6 +11,12 @@ pub struct MapStrikeApp {
     pub block_max: [i32; 3],
     pub move_id: u32,
     pub delta: [i32; 3],
+    pub room_origin: [i32; 3],
+    pub room_size: [i32; 3],
+    pub room_thickness: i32,
+    pub spawn_team: Team,
+    pub spawn_origin: [i32; 3],
+    pub spawn_yaw: u16,
     pub status: Option<String>,
     pub error: Option<String>,
 }
@@ -26,6 +32,12 @@ impl Default for MapStrikeApp {
             block_max: [128, 128, 64],
             move_id: 1,
             delta: [0, 0, 0],
+            room_origin: [-512, -512, 0],
+            room_size: [1024, 1024, 256],
+            room_thickness: 16,
+            spawn_team: Team::Terrorists,
+            spawn_origin: [-256, 0, 16],
+            spawn_yaw: 0,
             status: None,
             error: None,
         }
@@ -103,6 +115,45 @@ impl MapStrikeApp {
         }
     }
 
+    pub fn add_room(&mut self) -> Result<(), String> {
+        let blockout = self
+            .blockout
+            .as_mut()
+            .ok_or_else(|| "create or open a blockout first".to_string())?;
+        match blockout.add_room(self.room_origin, self.room_size, self.room_thickness) {
+            Ok(ids) => {
+                self.status = Some(format!(
+                    "Room floor and walls added as blocks {}–{}",
+                    ids[0], ids[4]
+                ));
+                self.error = None;
+                Ok(())
+            }
+            Err(error) => {
+                self.error = Some(error.clone());
+                Err(error)
+            }
+        }
+    }
+
+    pub fn add_spawn(&mut self) -> Result<(), String> {
+        let blockout = self
+            .blockout
+            .as_mut()
+            .ok_or_else(|| "create or open a blockout first".to_string())?;
+        match blockout.add_spawn(self.spawn_team, self.spawn_origin, self.spawn_yaw) {
+            Ok(id) => {
+                self.status = Some(format!("{:?} spawn {id} added", self.spawn_team));
+                self.error = None;
+                Ok(())
+            }
+            Err(error) => {
+                self.error = Some(error.clone());
+                Err(error)
+            }
+        }
+    }
+
     pub fn save_document(&mut self) -> Result<(), String> {
         let blockout = self
             .blockout
@@ -145,77 +196,137 @@ impl eframe::App for MapStrikeApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         ctx.set_visuals(egui::Visuals::dark());
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("MapStrike");
-            ui.label("Editable blockout study; OBJ export is not a Valve map build.");
-            ui.horizontal(|ui| {
-                ui.label("New blockout name");
-                ui.text_edit_singleline(&mut self.name);
-                if ui.button("New blockout").clicked() {
-                    let _ = self.new_blockout();
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                ui.heading("MapStrike");
+                ui.label(
+                    "Editable room and team-spawn study; OBJ export is not a Valve map build.",
+                );
+                ui.horizontal(|ui| {
+                    ui.label("New blockout name");
+                    ui.text_edit_singleline(&mut self.name);
+                    if ui.button("New blockout").clicked() {
+                        let _ = self.new_blockout();
+                    }
+                    if ui.button("Open blockout").clicked() {
+                        if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("Blockout JSON", &["json"])
+                            .pick_file()
+                        {
+                            let _ = self.open_blockout(&path);
+                        }
+                    }
+                });
+                if let Some(error) = &self.error {
+                    ui.colored_label(egui::Color32::LIGHT_RED, error);
                 }
-                if ui.button("Open blockout").clicked() {
-                    if let Some(path) = rfd::FileDialog::new()
-                        .add_filter("Blockout JSON", &["json"])
-                        .pick_file()
-                    {
-                        let _ = self.open_blockout(&path);
+                if let Some(status) = &self.status {
+                    ui.colored_label(egui::Color32::LIGHT_GREEN, status);
+                }
+                if let Some(blockout) = &self.blockout {
+                    ui.separator();
+                    ui.label(format!(
+                        "{} blocks · {} team spawns",
+                        blockout.blocks.len(),
+                        blockout.spawns.len()
+                    ));
+                    for block in &blockout.blocks {
+                        ui.label(format!(
+                            "#{} min {:?} max {:?}",
+                            block.id, block.min, block.max
+                        ));
+                    }
+                    for spawn in &blockout.spawns {
+                        ui.label(format!(
+                            "Spawn #{} {:?} at {:?}, yaw {}°",
+                            spawn.id, spawn.team, spawn.origin, spawn.yaw
+                        ));
+                    }
+                    ui.separator();
+                    ui.label("Open room: inside minimum, interior size, wall/floor thickness");
+                    ui.horizontal(|ui| {
+                        ui.label("Min XYZ");
+                        for value in &mut self.room_origin {
+                            ui.add(egui::DragValue::new(value));
+                        }
+                        ui.label("Size XYZ");
+                        for value in &mut self.room_size {
+                            ui.add(egui::DragValue::new(value));
+                        }
+                        ui.label("Thickness");
+                        ui.add(egui::DragValue::new(&mut self.room_thickness));
+                    });
+                    if ui.button("Add floor and four walls").clicked() {
+                        let _ = self.add_room();
+                    }
+                    ui.horizontal(|ui| {
+                        egui::ComboBox::from_label("Team")
+                            .selected_text(match self.spawn_team {
+                                Team::Terrorists => "Terrorists",
+                                Team::CounterTerrorists => "Counter-Terrorists",
+                            })
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(
+                                    &mut self.spawn_team,
+                                    Team::Terrorists,
+                                    "Terrorists",
+                                );
+                                ui.selectable_value(
+                                    &mut self.spawn_team,
+                                    Team::CounterTerrorists,
+                                    "Counter-Terrorists",
+                                );
+                            });
+                        ui.label("Origin XYZ");
+                        for value in &mut self.spawn_origin {
+                            ui.add(egui::DragValue::new(value));
+                        }
+                        ui.label("Yaw");
+                        ui.add(egui::DragValue::new(&mut self.spawn_yaw).range(0..=359));
+                    });
+                    if ui.button("Add team spawn").clicked() {
+                        let _ = self.add_spawn();
+                    }
+                    ui.separator();
+                    ui.horizontal(|ui| {
+                        ui.label("Min XYZ");
+                        for value in &mut self.block_min {
+                            ui.add(egui::DragValue::new(value));
+                        }
+                        ui.label("Max XYZ");
+                        for value in &mut self.block_max {
+                            ui.add(egui::DragValue::new(value));
+                        }
+                    });
+                    if ui.button("Add block").clicked() {
+                        let _ = self.add_block();
+                    }
+                    ui.horizontal(|ui| {
+                        ui.label("Move block ID");
+                        ui.add(egui::DragValue::new(&mut self.move_id));
+                        ui.label("Delta XYZ");
+                        for value in &mut self.delta {
+                            ui.add(egui::DragValue::new(value));
+                        }
+                    });
+                    if ui.button("Move block").clicked() {
+                        let _ = self.move_selected_block();
+                    }
+                    ui.horizontal(|ui| {
+                        ui.label("Blockout file");
+                        ui.text_edit_singleline(&mut self.document_path);
+                    });
+                    if ui.button("Save blockout").clicked() {
+                        let _ = self.save_document();
+                    }
+                    ui.horizontal(|ui| {
+                        ui.label("Inspection OBJ");
+                        ui.text_edit_singleline(&mut self.export_path);
+                    });
+                    if ui.button("Export inspection mesh").clicked() {
+                        let _ = self.export_mesh();
                     }
                 }
             });
-            if let Some(error) = &self.error {
-                ui.colored_label(egui::Color32::LIGHT_RED, error);
-            }
-            if let Some(status) = &self.status {
-                ui.colored_label(egui::Color32::LIGHT_GREEN, status);
-            }
-            if let Some(blockout) = &self.blockout {
-                ui.separator();
-                ui.label(format!("{} blocks", blockout.blocks.len()));
-                for block in &blockout.blocks {
-                    ui.label(format!(
-                        "#{} min {:?} max {:?}",
-                        block.id, block.min, block.max
-                    ));
-                }
-                ui.horizontal(|ui| {
-                    ui.label("Min XYZ");
-                    for value in &mut self.block_min {
-                        ui.add(egui::DragValue::new(value));
-                    }
-                    ui.label("Max XYZ");
-                    for value in &mut self.block_max {
-                        ui.add(egui::DragValue::new(value));
-                    }
-                });
-                if ui.button("Add block").clicked() {
-                    let _ = self.add_block();
-                }
-                ui.horizontal(|ui| {
-                    ui.label("Move block ID");
-                    ui.add(egui::DragValue::new(&mut self.move_id));
-                    ui.label("Delta XYZ");
-                    for value in &mut self.delta {
-                        ui.add(egui::DragValue::new(value));
-                    }
-                });
-                if ui.button("Move block").clicked() {
-                    let _ = self.move_selected_block();
-                }
-                ui.horizontal(|ui| {
-                    ui.label("Blockout file");
-                    ui.text_edit_singleline(&mut self.document_path);
-                });
-                if ui.button("Save blockout").clicked() {
-                    let _ = self.save_document();
-                }
-                ui.horizontal(|ui| {
-                    ui.label("Inspection OBJ");
-                    ui.text_edit_singleline(&mut self.export_path);
-                });
-                if ui.button("Export inspection mesh").clicked() {
-                    let _ = self.export_mesh();
-                }
-            }
         });
     }
 }
@@ -241,5 +352,20 @@ mod tests {
         assert_eq!(app.blockout.as_ref().unwrap().blocks[0].min, [16, 0, 0]);
         app.export_mesh().unwrap();
         assert!(Path::new(&app.export_path).is_file());
+    }
+
+    #[test]
+    fn view_model_adds_room_and_team_spawns() {
+        let mut app = MapStrikeApp::default();
+        app.new_blockout().unwrap();
+        app.add_room().unwrap();
+        app.add_spawn().unwrap();
+        app.spawn_team = super::Team::CounterTerrorists;
+        app.spawn_origin = [256, 0, 16];
+        app.spawn_yaw = 180;
+        app.add_spawn().unwrap();
+        let blockout = app.blockout.unwrap();
+        assert_eq!(blockout.blocks.len(), 5);
+        assert_eq!(blockout.spawns.len(), 2);
     }
 }
