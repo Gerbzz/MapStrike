@@ -15,6 +15,12 @@
 
 MapStrike gives early map ideas a simple geometric form. Place and move boxes in a named blockout, save the layout, and export an OBJ to inspect elsewhere; a separate tool can inventory an existing map folder.
 
+## Native renderer preview
+
+![Actual MapStrike native blockout form showing a synthetic four-box Courtyard Study](docs/screenshots/mapstrike-blockout-prototype.png)
+
+This 650 x 370 image is a direct egui capture of the current form-based blockout UI with a [synthetic saved document](docs/screenshots/fixtures/courtyard-study.json). The evidence-only capture helper is in [draft PR #1](https://github.com/Gerbzz/MapStrike/pull/1); the application UI source is unchanged from `main`. This is a renderer view, not a record of pointer use or a 3D map preview. [Capture provenance and limits](docs/screenshots/README.md) identify the exact source, build, and fixture.
+
 ## Highlights
 
 - Build and revise box-based layouts.
