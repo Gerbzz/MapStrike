@@ -453,6 +453,15 @@ fn render(blockout: &Blockout) -> Result<String, String> {
     if t == 0 || ct == 0 {
         return Err("VMAP proof requires at least one T and one CT spawn".into());
     }
+    for spawn in &blockout.spawns {
+        if blockout.blocks.iter().any(|block| {
+            (0..3).all(|axis| {
+                block.min[axis] < spawn.origin[axis] && spawn.origin[axis] < block.max[axis]
+            })
+        }) {
+            return Err(format!("spawn {} lies inside a solid block", spawn.id));
+        }
+    }
     let ids = Ids::new(blockout)?;
     let mut w = Kv2::new();
     w.object("$prefix_element$", None);
@@ -642,5 +651,18 @@ mod tests {
         let mut no_ct = room;
         no_ct.spawns.retain(|spawn| spawn.team == Team::Terrorists);
         assert!(render(&no_ct).is_err());
+        let wrong_extension = dir.path().join("not-a-map.txt");
+        assert!(export_vmap(&no_ct, &wrong_extension).is_err());
+        assert!(!wrong_extension.exists());
+    }
+
+    #[test]
+    fn refuses_spawn_inside_solid_without_creating_file() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let output = dir.path().join("bad.vmap");
+        let mut room = room();
+        room.spawns[0].origin = [0, 0, -8];
+        assert!(export_vmap(&room, &output).is_err());
+        assert!(!output.exists());
     }
 }

@@ -249,7 +249,7 @@ impl eframe::App for MapStrikeApp {
                         ui.image((logo.id(), egui::vec2(128.0, 128.0)));
                     }
                     ui.heading("MapStrike");
-                    ui.label("Shape a space, then test it in Counter-Strike 2.");
+                    ui.label("Shape a CS2 blockout and prepare it for Hammer.");
                     ui.small("A PWDS project");
                     ui.add_space(22.0);
                     ui.horizontal(|ui| {
@@ -278,9 +278,7 @@ impl eframe::App for MapStrikeApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.heading("Blockout editor");
-                ui.label(
-                    "Editable room and team-spawn study; OBJ export is not a Valve map build.",
-                );
+                ui.label("Editable room and team-spawn study; VMAP export awaits Hammer validation.");
                 ui.horizontal(|ui| {
                     ui.label("New blockout name");
                     ui.text_edit_singleline(&mut self.name);

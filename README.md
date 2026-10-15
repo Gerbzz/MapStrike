@@ -21,7 +21,7 @@ MapStrike gives early map ideas a simple geometric form. Place and move boxes in
 
 This 650 x 370 image is a direct egui capture of the current form-based blockout UI with a [synthetic saved document](docs/screenshots/fixtures/courtyard-study.json). The evidence-only capture helper is in [draft PR #1](https://github.com/Gerbzz/MapStrike/pull/1); the application UI source is unchanged from `main`. This is a renderer view, not a record of pointer use or a 3D map preview. [Capture provenance and limits](docs/screenshots/README.md) identify the exact source, build, and fixture.
 
-The screenshot shows the published `main` UI before the room, team-spawn, and experimental VMAP controls in this draft branch. A new capture is pending a native build and inspection.
+The screenshot shows the published `main` UI before the room, team-spawn, and experimental VMAP controls in this draft branch. The draft uses the approved MapStrike logo on its startup view and leaves the editor header for navigation. A new capture and visual inspection are pending.
 
 ## Highlights
 
@@ -33,7 +33,7 @@ The screenshot shows the published `main` UI before the room, team-spawn, and ex
 
 ## Current status
 
-Early source prototype. The room and spawn model passed [8 hosted Windows core tests](https://github.com/Gerbzz/MapStrike/actions/runs/38707854215). The experimental VMAP writer and revised native window are in this draft and still require their hosted test run and live inspection. Hammer open, compile, and CS2 walking checks remain open; this is not a playable CS2 map claim.
+Early source prototype. The room, spawn, and experimental VMAP model passed [11 core and 13 native-model tests plus CLI and window builds on hosted Windows](https://github.com/Gerbzz/MapStrike/actions/runs/38709554651). Live UI inspection, Hammer open and compile, and CS2 walking checks remain open; this is not a playable CS2 map claim.
 
 ## Two focused workflows
 

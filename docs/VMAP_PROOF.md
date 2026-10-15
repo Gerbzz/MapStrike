@@ -18,8 +18,8 @@ The format fields and team entity names were checked against the [public CS2 Uno
 
 | Slice | State |
 | --- | --- |
-| Create room, add T/CT markers, save, reopen, reject invalid dimensions/yaw | Implemented; 8 core tests passed in [hosted Windows run 38707854215](https://github.com/Gerbzz/MapStrike/actions/runs/38707854215). |
-| Write a new VMAP, keep existing destinations intact, reject missing team, repeat export safely | Implemented in draft; hosted test and native UI run pending. |
+| Create room, add T/CT markers, save, reopen, reject invalid dimensions/yaw | Implemented; 11 core tests passed in [hosted Windows run 38709554651](https://github.com/Gerbzz/MapStrike/actions/runs/38709554651). |
+| Write a new VMAP, keep existing destinations intact, reject missing team or an embedded spawn point, repeat export safely | Implemented in draft; 13 native-model tests and both binaries passed in [run 38709554651](https://github.com/Gerbzz/MapStrike/actions/runs/38709554651). The draft CI also exercises CLI failure paths and retains a small generated file for inspection. |
 | Open exported VMAP in CS2 Hammer and inspect box geometry, material, and spawn placement | Unverified; Workshop Tools are not installed on this PC. |
 | Compile, load in CS2, and walk between both team spawns | Missing. No playable-map claim. |
 | Player clearance, lighting, navigation, visual manipulation, undo/redo, existing VMAP editing | Missing. |
