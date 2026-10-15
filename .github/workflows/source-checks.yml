@@ -1,0 +1,67 @@
+name: Source checks
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  core-windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Check formatting
+        run: cargo fmt -- --check
+      - name: Test core blockout and inventory logic
+        run: cargo test --locked --lib
+      - name: Build command-line tool
+        run: cargo build --locked --bin mapstrike
+      - name: Exercise CLI save, reopen, export and failure paths
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $false
+          $dir = Join-Path $env:RUNNER_TEMP 'mapstrike-proof'
+          New-Item -ItemType Directory -Path $dir | Out-Null
+          $doc = Join-Path $dir 'room.json'
+          $map = Join-Path $dir 'room.vmap'
+          $exe = Join-Path $PWD 'target/debug/mapstrike.exe'
+          & $exe new-blockout 'CI room' $doc
+          if ($LASTEXITCODE -ne 0) { throw 'new-blockout failed' }
+          & $exe add-room $doc -512 -512 0 1024 1024 256 16
+          if ($LASTEXITCODE -ne 0) { throw 'add-room failed' }
+          & $exe add-spawn $doc t -256 0 16 0
+          if ($LASTEXITCODE -ne 0) { throw 'T spawn failed' }
+          & $exe add-spawn $doc ct 256 0 16 180
+          if ($LASTEXITCODE -ne 0) { throw 'CT spawn failed' }
+          & $exe export-vmap $doc $map
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path -LiteralPath $map)) { throw 'VMAP export failed' }
+          if ((Get-Item -LiteralPath $map).Length -gt 1048576) { throw 'VMAP proof exceeded 1 MiB' }
+          $mapHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $map).Hash
+          $docHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $doc).Hash
+          & $exe export-vmap $doc $map
+          if ($LASTEXITCODE -eq 0) { throw 'repeated export overwrote an existing map' }
+          if ((Get-FileHash -Algorithm SHA256 -LiteralPath $map).Hash -ne $mapHash) { throw 'existing VMAP changed' }
+          & $exe add-spawn $doc t 0 0 16 360
+          if ($LASTEXITCODE -eq 0) { throw 'invalid yaw was accepted' }
+          if ((Get-FileHash -Algorithm SHA256 -LiteralPath $doc).Hash -ne $docHash) { throw 'invalid edit changed the document' }
+          exit 0
+      - name: Test native view model and VMAP export
+        run: cargo test --locked --features native-ui --lib
+      - name: Build native window
+        run: cargo build --locked --features native-ui --bin mapstrike-ui
+      - name: Keep synthetic VMAP proof for inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: synthetic-room-vmap-${{ github.sha }}
+          path: ${{ runner.temp }}/mapstrike-proof/room.vmap
+          retention-days: 1
+          if-no-files-found: error

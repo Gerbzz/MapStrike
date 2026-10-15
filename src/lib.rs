@@ -6,6 +6,7 @@ use std::path::Path;
 use walkdir::WalkDir;
 
 pub mod blockout;
+pub mod vmap;
 
 #[cfg(feature = "native-ui")]
 pub mod ui;

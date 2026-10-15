@@ -6,7 +6,7 @@ publish = false
 
 [features]
 default = []
-native-ui = ["dep:eframe", "dep:rfd"]
+native-ui = ["dep:eframe", "dep:rfd", "dep:image"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -16,6 +16,7 @@ tempfile = "3"
 walkdir = "2"
 eframe = { version = "0.30", default-features = false, features = ["accesskit", "default_fonts", "wgpu", "glow"], optional = true }
 rfd = { version = "0.15", optional = true }
+image = { version = "0.25", default-features = false, features = ["png"], optional = true }
 
 [[bin]]
 name = "mapstrike-ui"
