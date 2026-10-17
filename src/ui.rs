@@ -119,6 +119,7 @@ impl MapStrikeApp {
                 Ok(())
             }
             Err(error) => {
+                let error = format!("Could not open {}: {error}", path.display());
                 self.error = Some(error.clone());
                 Err(error)
             }
