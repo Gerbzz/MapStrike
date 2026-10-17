@@ -22,3 +22,16 @@ jobs:
       - run: rustfmt --edition 2024 --check src/bin/mapstrike-capture.rs
       - run: cargo test --locked --features native-ui --bin mapstrike-capture
       - run: cargo build --locked --features native-ui --bin mapstrike-capture
+      - name: Capture updated native workspace
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $output = Join-Path $env:RUNNER_TEMP 'mapstrike-workspace.png'
+          & target/debug/mapstrike-capture.exe docs/screenshots/fixtures/courtyard-study.json $output
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path -LiteralPath $output)) { throw 'Hosted native capture unavailable' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mapstrike-workspace-${{ github.sha }}
+          path: ${{ runner.temp }}/mapstrike-workspace.png
+          retention-days: 1
+          if-no-files-found: warn
