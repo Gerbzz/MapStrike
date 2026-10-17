@@ -21,6 +21,7 @@ pub struct MapStrikeApp {
     pub spawn_yaw: u16,
     pub status: Option<String>,
     pub error: Option<String>,
+    confirm_new: bool,
     logo_texture: Option<egui::TextureHandle>,
     logo_loaded: bool,
 }
@@ -45,6 +46,7 @@ impl Default for MapStrikeApp {
             spawn_yaw: 0,
             status: None,
             error: None,
+            confirm_new: false,
             logo_texture: None,
             logo_loaded: false,
         }
@@ -55,6 +57,11 @@ impl MapStrikeApp {
     pub fn new_blockout(&mut self) -> Result<(), String> {
         match Blockout::new(&self.name) {
             Ok(blockout) => {
+                if self.blockout.is_some() {
+                    self.document_path.clear();
+                    self.export_path.clear();
+                    self.vmap_path.clear();
+                }
                 self.blockout = Some(blockout);
                 self.status = Some("Editable blockout created".into());
                 self.error = None;
@@ -181,6 +188,20 @@ impl MapStrikeApp {
         }
     }
 
+    fn save_from_ui(&mut self) {
+        if self.document_path.trim().is_empty() {
+            let Some(path) = rfd::FileDialog::new()
+                .add_filter("Blockout JSON", &["json"])
+                .set_file_name("blockout.json")
+                .save_file()
+            else {
+                return;
+            };
+            self.document_path = path.display().to_string();
+        }
+        let _ = self.save_document();
+    }
+
     pub fn export_mesh(&mut self) -> Result<(), String> {
         let blockout = self
             .blockout
@@ -228,7 +249,11 @@ impl MapStrikeApp {
         ui.label("New blockout name");
         ui.add(egui::TextEdit::singleline(&mut self.name).desired_width(280.0));
         if ui.button("Create new blockout").clicked() {
-            let _ = self.new_blockout();
+            if self.blockout.is_some() {
+                self.confirm_new = true;
+            } else {
+                let _ = self.new_blockout();
+            }
         }
         if let Some(error) = &self.error {
             ui.colored_label(egui::Color32::LIGHT_RED, error);
@@ -303,7 +328,7 @@ impl MapStrikeApp {
         ui.label("Editable blockout JSON");
         ui.add(egui::TextEdit::singleline(&mut self.document_path).desired_width(280.0));
         if ui.button("Save blockout JSON").clicked() {
-            let _ = self.save_document();
+            self.save_from_ui();
         }
         ui.add_space(8.0);
         ui.label("Inspection OBJ");
@@ -518,7 +543,7 @@ impl eframe::App for MapStrikeApp {
                         }
                     }
                     if ui.button("Save blockout").clicked() {
-                        let _ = self.save_document();
+                        self.save_from_ui();
                     }
                 });
             });
@@ -531,6 +556,25 @@ impl eframe::App for MapStrikeApp {
                 egui::ScrollArea::vertical().show(ui, |ui| self.show_controls(ui));
             });
         egui::CentralPanel::default().show(ctx, |ui| self.show_plan(ui));
+        if self.confirm_new {
+            egui::Window::new("Start a new blockout")
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
+                .show(ctx, |ui| {
+                    ui.label("Replace the current in-memory blockout?");
+                    ui.label("Saved files stay on disk. Unsaved edits will be lost.");
+                    ui.horizontal(|ui| {
+                        if ui.button("Keep editing").clicked() {
+                            self.confirm_new = false;
+                        }
+                        if ui.button("Start new blockout").clicked() {
+                            let _ = self.new_blockout();
+                            self.confirm_new = false;
+                        }
+                    });
+                });
+        }
     }
 }
 
@@ -555,6 +599,21 @@ mod tests {
         assert_eq!(app.blockout.as_ref().unwrap().blocks[0].min, [16, 0, 0]);
         app.export_mesh().unwrap();
         assert!(Path::new(&app.export_path).is_file());
+    }
+
+    #[test]
+    fn starting_another_blockout_does_not_reuse_previous_output_paths() {
+        let mut app = MapStrikeApp::default();
+        app.new_blockout().unwrap();
+        app.document_path = "previous.json".into();
+        app.export_path = "previous.obj".into();
+        app.vmap_path = "previous.vmap".into();
+        app.name = "Next study".into();
+        app.new_blockout().unwrap();
+        assert_eq!(app.blockout.as_ref().unwrap().name, "Next study");
+        assert!(app.document_path.is_empty());
+        assert!(app.export_path.is_empty());
+        assert!(app.vmap_path.is_empty());
     }
 
     #[test]
