@@ -105,10 +105,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let mut app = MapStrikeApp::default();
     app.open_blockout(&document)?;
-    let options = eframe::NativeOptions {
+    let mut options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([1280.0, 800.0]),
         ..Default::default()
     };
+    #[cfg(target_os = "linux")]
+    {
+        options.renderer = eframe::Renderer::Glow;
+    }
     let capture_output = output.clone();
     let (outcome_sender, outcome_receiver) = mpsc::channel();
     eframe::run_native(
