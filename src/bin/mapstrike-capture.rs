@@ -107,6 +107,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     app.open_blockout(&document)?;
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([1280.0, 800.0]),
+        renderer: eframe::Renderer::Glow,
         ..Default::default()
     };
     let capture_output = output.clone();
