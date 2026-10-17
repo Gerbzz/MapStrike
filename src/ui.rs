@@ -219,11 +219,239 @@ impl MapStrikeApp {
             }
         }
     }
+
+    fn show_controls(&mut self, ui: &mut egui::Ui) {
+        ui.add_space(8.0);
+        ui.heading("Build the blockout");
+        ui.small("Work in X/Y from above. Z values control height; select a block in the plan to move it.");
+        ui.add_space(12.0);
+        ui.label("New blockout name");
+        ui.add(egui::TextEdit::singleline(&mut self.name).desired_width(280.0));
+        if ui.button("Create new blockout").clicked() {
+            let _ = self.new_blockout();
+        }
+        if let Some(error) = &self.error {
+            ui.colored_label(egui::Color32::LIGHT_RED, error);
+        } else if let Some(status) = &self.status {
+            ui.colored_label(egui::Color32::LIGHT_GREEN, status);
+        }
+
+        ui.add_space(16.0);
+        ui.separator();
+        ui.heading("Room");
+        ui.small("Add a floor and four walls around an interior.");
+        coordinate_row(ui, "Interior minimum", &mut self.room_origin);
+        coordinate_row(ui, "Interior size", &mut self.room_size);
+        ui.horizontal(|ui| {
+            ui.label("Wall thickness");
+            ui.add(egui::DragValue::new(&mut self.room_thickness).range(1..=1024));
+        });
+        if ui.button("Add floor and walls").clicked() {
+            let _ = self.add_room();
+        }
+
+        ui.add_space(16.0);
+        ui.separator();
+        ui.heading("Team spawns");
+        egui::ComboBox::from_label("Team")
+            .selected_text(match self.spawn_team {
+                Team::Terrorists => "Terrorists",
+                Team::CounterTerrorists => "Counter-Terrorists",
+            })
+            .show_ui(ui, |ui| {
+                ui.selectable_value(&mut self.spawn_team, Team::Terrorists, "Terrorists");
+                ui.selectable_value(
+                    &mut self.spawn_team,
+                    Team::CounterTerrorists,
+                    "Counter-Terrorists",
+                );
+            });
+        coordinate_row(ui, "Origin", &mut self.spawn_origin);
+        ui.horizontal(|ui| {
+            ui.label("Yaw");
+            ui.add(
+                egui::DragValue::new(&mut self.spawn_yaw)
+                    .range(0..=359)
+                    .suffix("°"),
+            );
+        });
+        if ui.button("Add team spawn").clicked() {
+            let _ = self.add_spawn();
+        }
+
+        ui.add_space(16.0);
+        ui.separator();
+        ui.heading("Blocks");
+        coordinate_row(ui, "Minimum", &mut self.block_min);
+        coordinate_row(ui, "Maximum", &mut self.block_max);
+        if ui.button("Add block").clicked() {
+            let _ = self.add_block();
+        }
+        ui.add_space(8.0);
+        ui.horizontal(|ui| {
+            ui.label("Selected ID");
+            ui.add(egui::DragValue::new(&mut self.move_id).range(1..=u32::MAX));
+        });
+        coordinate_row(ui, "Move by", &mut self.delta);
+        if ui.button("Move selected block").clicked() {
+            let _ = self.move_selected_block();
+        }
+
+        ui.add_space(16.0);
+        ui.separator();
+        ui.heading("Save and export");
+        ui.label("Editable blockout JSON");
+        ui.add(egui::TextEdit::singleline(&mut self.document_path).desired_width(280.0));
+        if ui.button("Save blockout JSON").clicked() {
+            let _ = self.save_document();
+        }
+        ui.add_space(8.0);
+        ui.label("Inspection OBJ");
+        ui.add(egui::TextEdit::singleline(&mut self.export_path).desired_width(280.0));
+        if ui.button("Export inspection mesh").clicked() {
+            let _ = self.export_mesh();
+        }
+        ui.add_space(8.0);
+        ui.label("Experimental CS2 VMAP");
+        ui.add(egui::TextEdit::singleline(&mut self.vmap_path).desired_width(280.0));
+        ui.small("Requires both T and CT spawns. Validate in Hammer and CS2 before use.");
+        if ui.button("Export new VMAP source").clicked() {
+            let _ = self.export_cs2_source();
+        }
+        ui.add_space(12.0);
+    }
+
+    fn show_plan(&mut self, ui: &mut egui::Ui) {
+        let Some(blockout) = &self.blockout else {
+            return;
+        };
+        ui.add_space(8.0);
+        ui.heading("Top-down plan");
+        ui.label(format!(
+            "{} blocks  ·  {} team spawns",
+            blockout.blocks.len(),
+            blockout.spawns.len()
+        ));
+        ui.small("Click a block to select it. This is an X/Y planning view, not a Hammer or in-game preview.");
+        ui.add_space(10.0);
+        let size = ui.available_size();
+        let (rect, response) = ui.allocate_exact_size(
+            egui::vec2(size.x.max(240.0), size.y.max(240.0)),
+            egui::Sense::click(),
+        );
+        let painter = ui.painter_at(rect);
+        painter.rect_filled(rect, 4.0, egui::Color32::from_rgb(22, 27, 34));
+        if blockout.blocks.is_empty() && blockout.spawns.is_empty() {
+            painter.text(
+                rect.center(),
+                egui::Align2::CENTER_CENTER,
+                "Add a room or a block to see the plan",
+                egui::FontId::proportional(16.0),
+                egui::Color32::from_rgb(205, 215, 222),
+            );
+            return;
+        }
+        let mut min_x = i32::MAX;
+        let mut min_y = i32::MAX;
+        let mut max_x = i32::MIN;
+        let mut max_y = i32::MIN;
+        for block in &blockout.blocks {
+            min_x = min_x.min(block.min[0]);
+            min_y = min_y.min(block.min[1]);
+            max_x = max_x.max(block.max[0]);
+            max_y = max_y.max(block.max[1]);
+        }
+        for spawn in &blockout.spawns {
+            min_x = min_x.min(spawn.origin[0].saturating_sub(32));
+            min_y = min_y.min(spawn.origin[1].saturating_sub(32));
+            max_x = max_x.max(spawn.origin[0].saturating_add(32));
+            max_y = max_y.max(spawn.origin[1].saturating_add(32));
+        }
+        let span_x = (i64::from(max_x) - i64::from(min_x)).max(1) as f32;
+        let span_y = (i64::from(max_y) - i64::from(min_y)).max(1) as f32;
+        let inset = rect.shrink(36.0);
+        let scale = (inset.width() / span_x).min(inset.height() / span_y);
+        let origin = egui::pos2(
+            inset.center().x - span_x * scale * 0.5,
+            inset.center().y + span_y * scale * 0.5,
+        );
+        let point = |x: i32, y: i32| {
+            egui::pos2(
+                origin.x + (i64::from(x) - i64::from(min_x)) as f32 * scale,
+                origin.y - (i64::from(y) - i64::from(min_y)) as f32 * scale,
+            )
+        };
+        let mut picked = None;
+        for block in &blockout.blocks {
+            let area = egui::Rect::from_two_pos(
+                point(block.min[0], block.min[1]),
+                point(block.max[0], block.max[1]),
+            );
+            let selected = block.id == self.move_id;
+            painter.rect_filled(
+                area,
+                1.0,
+                if selected {
+                    egui::Color32::from_rgb(111, 170, 193)
+                } else {
+                    egui::Color32::from_rgb(70, 94, 108)
+                },
+            );
+            if area.width() > 34.0 && area.height() > 20.0 {
+                painter.text(
+                    area.center(),
+                    egui::Align2::CENTER_CENTER,
+                    format!("#{}", block.id),
+                    egui::FontId::proportional(13.0),
+                    egui::Color32::WHITE,
+                );
+            }
+            if response.clicked()
+                && response
+                    .interact_pointer_pos()
+                    .is_some_and(|pos| area.contains(pos))
+            {
+                picked = Some(block.id);
+            }
+        }
+        for spawn in &blockout.spawns {
+            let pos = point(spawn.origin[0], spawn.origin[1]);
+            let (label, color) = match spawn.team {
+                Team::Terrorists => ("T", egui::Color32::from_rgb(235, 173, 92)),
+                Team::CounterTerrorists => ("CT", egui::Color32::from_rgb(107, 169, 223)),
+            };
+            painter.circle_filled(pos, 12.0, color);
+            painter.text(
+                pos,
+                egui::Align2::CENTER_CENTER,
+                label,
+                egui::FontId::proportional(11.0),
+                egui::Color32::BLACK,
+            );
+        }
+        if let Some(id) = picked {
+            self.move_id = id;
+        }
+    }
+}
+
+fn coordinate_row(ui: &mut egui::Ui, label: &str, values: &mut [i32; 3]) {
+    ui.label(label);
+    ui.horizontal(|ui| {
+        for (axis, value) in ["X", "Y", "Z"].into_iter().zip(values.iter_mut()) {
+            ui.label(axis);
+            ui.add_sized([55.0, 22.0], egui::DragValue::new(value));
+        }
+    });
 }
 
 impl eframe::App for MapStrikeApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         ctx.set_visuals(egui::Visuals::dark());
+        let mut style = (*ctx.style()).clone();
+        style.spacing.item_spacing = egui::vec2(8.0, 8.0);
+        style.spacing.button_padding = egui::vec2(10.0, 6.0);
+        ctx.set_style(style);
         if !self.logo_loaded {
             self.logo_loaded = true;
             if let Ok(png) =
@@ -275,16 +503,12 @@ impl eframe::App for MapStrikeApp {
             });
             return;
         }
-        egui::CentralPanel::default().show(ctx, |ui| {
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                ui.heading("Blockout editor");
-                ui.label("Editable room and team-spawn study; VMAP export awaits Hammer validation.");
-                ui.horizontal(|ui| {
-                    ui.label("New blockout name");
-                    ui.text_edit_singleline(&mut self.name);
-                    if ui.button("New blockout").clicked() {
-                        let _ = self.new_blockout();
-                    }
+        egui::TopBottomPanel::top("workspace_header").show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.heading("MapStrike");
+                ui.separator();
+                ui.label(&self.name);
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if ui.button("Open blockout").clicked() {
                         if let Some(path) = rfd::FileDialog::new()
                             .add_filter("Blockout JSON", &["json"])
@@ -293,127 +517,20 @@ impl eframe::App for MapStrikeApp {
                             let _ = self.open_blockout(&path);
                         }
                     }
-                });
-                if let Some(error) = &self.error {
-                    ui.colored_label(egui::Color32::LIGHT_RED, error);
-                }
-                if let Some(status) = &self.status {
-                    ui.colored_label(egui::Color32::LIGHT_GREEN, status);
-                }
-                if let Some(blockout) = &self.blockout {
-                    ui.separator();
-                    ui.label(format!(
-                        "{} blocks · {} team spawns",
-                        blockout.blocks.len(),
-                        blockout.spawns.len()
-                    ));
-                    for block in &blockout.blocks {
-                        ui.label(format!(
-                            "#{} min {:?} max {:?}",
-                            block.id, block.min, block.max
-                        ));
-                    }
-                    for spawn in &blockout.spawns {
-                        ui.label(format!(
-                            "Spawn #{} {:?} at {:?}, yaw {}°",
-                            spawn.id, spawn.team, spawn.origin, spawn.yaw
-                        ));
-                    }
-                    ui.separator();
-                    ui.label("Open room: inside minimum, interior size, wall/floor thickness");
-                    ui.horizontal(|ui| {
-                        ui.label("Min XYZ");
-                        for value in &mut self.room_origin {
-                            ui.add(egui::DragValue::new(value));
-                        }
-                        ui.label("Size XYZ");
-                        for value in &mut self.room_size {
-                            ui.add(egui::DragValue::new(value));
-                        }
-                        ui.label("Thickness");
-                        ui.add(egui::DragValue::new(&mut self.room_thickness));
-                    });
-                    if ui.button("Add floor and four walls").clicked() {
-                        let _ = self.add_room();
-                    }
-                    ui.horizontal(|ui| {
-                        egui::ComboBox::from_label("Team")
-                            .selected_text(match self.spawn_team {
-                                Team::Terrorists => "Terrorists",
-                                Team::CounterTerrorists => "Counter-Terrorists",
-                            })
-                            .show_ui(ui, |ui| {
-                                ui.selectable_value(
-                                    &mut self.spawn_team,
-                                    Team::Terrorists,
-                                    "Terrorists",
-                                );
-                                ui.selectable_value(
-                                    &mut self.spawn_team,
-                                    Team::CounterTerrorists,
-                                    "Counter-Terrorists",
-                                );
-                            });
-                        ui.label("Origin XYZ");
-                        for value in &mut self.spawn_origin {
-                            ui.add(egui::DragValue::new(value));
-                        }
-                        ui.label("Yaw");
-                        ui.add(egui::DragValue::new(&mut self.spawn_yaw).range(0..=359));
-                    });
-                    if ui.button("Add team spawn").clicked() {
-                        let _ = self.add_spawn();
-                    }
-                    ui.separator();
-                    ui.horizontal(|ui| {
-                        ui.label("Min XYZ");
-                        for value in &mut self.block_min {
-                            ui.add(egui::DragValue::new(value));
-                        }
-                        ui.label("Max XYZ");
-                        for value in &mut self.block_max {
-                            ui.add(egui::DragValue::new(value));
-                        }
-                    });
-                    if ui.button("Add block").clicked() {
-                        let _ = self.add_block();
-                    }
-                    ui.horizontal(|ui| {
-                        ui.label("Move block ID");
-                        ui.add(egui::DragValue::new(&mut self.move_id));
-                        ui.label("Delta XYZ");
-                        for value in &mut self.delta {
-                            ui.add(egui::DragValue::new(value));
-                        }
-                    });
-                    if ui.button("Move block").clicked() {
-                        let _ = self.move_selected_block();
-                    }
-                    ui.horizontal(|ui| {
-                        ui.label("Blockout file");
-                        ui.text_edit_singleline(&mut self.document_path);
-                    });
                     if ui.button("Save blockout").clicked() {
                         let _ = self.save_document();
                     }
-                    ui.horizontal(|ui| {
-                        ui.label("Inspection OBJ");
-                        ui.text_edit_singleline(&mut self.export_path);
-                    });
-                    if ui.button("Export inspection mesh").clicked() {
-                        let _ = self.export_mesh();
-                    }
-                    ui.horizontal(|ui| {
-                        ui.label("Experimental CS2 VMAP");
-                        ui.text_edit_singleline(&mut self.vmap_path);
-                    });
-                    ui.label("Requires T and CT spawns. Hammer open, compile, and CS2 play checks are pending.");
-                    if ui.button("Export new VMAP source").clicked() {
-                        let _ = self.export_cs2_source();
-                    }
-                }
+                });
             });
         });
+        egui::SidePanel::left("blockout_controls")
+            .resizable(true)
+            .default_width(320.0)
+            .min_width(275.0)
+            .show(ctx, |ui| {
+                egui::ScrollArea::vertical().show(ui, |ui| self.show_controls(ui));
+            });
+        egui::CentralPanel::default().show(ctx, |ui| self.show_plan(ui));
     }
 }
 
